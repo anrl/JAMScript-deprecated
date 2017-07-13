@@ -1,0 +1,60 @@
+{
+  "path" : "./",
+  "pages" : [
+    {
+      "name" : "Data Panel",
+      "route" : "/data-panel",
+      "layout" : "default",
+      "panels" : [
+        {
+          "type": "FormSet",
+          "items": [
+            {
+              "type": "select",
+              "dispLabel": "device",
+              "value": "stores[0][0]",
+              "list": [
+                {"dispLabel": "Device1",
+                  "id": "M"
+                }, {"dispLabel": "Device2",
+                  "id": "H"
+                }, {"dispLabel": "Device3",
+                  "id": "L"
+                }, {"dispLabel": "Device4",
+                  "id": "Z"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "dispLabel": "X value",
+              "value": "stores[0][1]"
+            },
+            { "type": "text",
+              "dispLabel": "Y value",
+              "value": "map.y"
+            },
+            {
+              "type": "select",
+              "dispLabel": "Status",
+              "value": "map.status",
+              "list": [
+                {
+                  "dispLabel": "A",
+                  "id": "A"
+                },
+                {
+                  "dispLabel": "NA",
+                  "id": "NA"
+                }
+              ]
+            }
+          ],
+          "stores": [
+            [ "0", "0", "0", "0" ]
+          ]
+        }
+      ]
+    }
+  ]
+}
