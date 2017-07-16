@@ -8,7 +8,7 @@
       "panels" : [ // Each page is organized by multiple Panels, these panels can easily be moved around based on layout
         {
           "type": "FormSet", // FormSet API
-          "items": [ // Define components to show on the FormSet, a FormSet API
+          "formList": [ // Define components to show on the FormSet, a FormSet API
             {
               "type": "select", // Item Type - dropdown select list
               "dispLabel": "device", // Show Name
