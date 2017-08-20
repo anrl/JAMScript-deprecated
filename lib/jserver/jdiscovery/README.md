@@ -106,12 +106,19 @@ By this point, you're probably sick of the status attribute. Surely there are ot
 
     reggie.discoverAttributes({
         device: {
-            thermostat: 'i-found-a-thermostat'
+            thermostat: {
+                onAdd: 'i-found-a-thermostat',
+                onRemove: 'this-node-is-no-longer-a-thermostat'
+            }
         }
     });
 
     reggie.on('i-found-a-thermostat', function(id, value) {
         console.log('Node ' + id + ' is apparently a thermostat with temperature ' + value);
+    });
+
+    reggie.on('this-node-is-no-longer-a-thermostat', function(id) {
+        console.log('Node ' + id + ' is apparently no longer a thermostat');
     });
 
     // ...
@@ -243,126 +250,162 @@ Finally, an example, putting everything together, and assuming that the type of 
 
 **app.js**
 ```
-    var machType = process.argv[2];
-    var port = process.argv[3];
-    var app = 'myApp';
-    var id = 'abcd-1234';
+var Registrar = require('./jregistrar'),
+    errLog = require('../jerrlog'),
+    globals = require('../constants').globals,
+    events = require('events'),
+    Random = require('random-js');
 
-    var reggie = new Registrar(app, machType, id, port);
+var random = new Random(Random.engines.mt19937().autoSeed());
 
-    //------------------------------------------------------------------------------
-    // Default discoveries
-    //------------------------------------------------------------------------------
+var machType = process.argv[2],
+    phoneType = process.argv[3],
+    phoneNumber = process.argv[4],
+    app = 'test',
+    port = 1337,
+    id = random.uuid4();
 
-    if (machType === 'device') {
-        reggie.on('fog-up', function(fogId, connInfo) {
-            console.log('FOG UP: id: ' + fogId + ', ip: ' + connInfo.ip + ', port: ' + connInfo.port);
-        });
+// don't forget to initialize the logger!
+errLog.init(app, false);
 
-        reggie.on('fog-down', function(fogId) {
-            console.log('FOG DOWN: id: ' + fogId);
-        });
-    } else if (machType === 'fog') {
-        reggie.on('cloud-up', function(cloudId, connInfo) {
-            console.log('CLOUD UP: id: ' + cloudId + ', ip: ' + connInfo.ip + ', port: ' + connInfo.port);
+console.log('_______________________________________________');
+console.log(machType + ' id: ' + id);
+console.log('-----------------------------------------------');
+console.log();
 
-        });
+var reggie = new Registrar(app, machType, id, port);
 
-        reggie.on('cloud-down', function(cloudId) {
-            console.log('CLOUD DOWN: id: ' + cloudId);
-        });
-    }
+//------------------------------------------------------------------------------
+// Default discoveries
+//------------------------------------------------------------------------------
 
-    // on rare occasions, you might get an error
-    reggie.on('error', function(err) {
-        switch(err.name) {
-            case 'permissions_err':
-                console.log(err.message);
-                console.log('Subscriptions: ' + err.value);
-                break;
-            default:
-                console.log('unknown error');
-                break;
-        }
+if (machType === 'device') {
+    reggie.on('fog-up', function(fogId, connInfo) {
+        console.log('FOG UP: id: ' + fogId + ', ip: ' + connInfo.ip + ', port: ' + connInfo.port);
     });
 
-    //------------------------------------------------------------------------------
-    // Custom attributes/discoveries
-    //------------------------------------------------------------------------------
+    reggie.on('fog-down', function(fogId) {
+        console.log('FOG DOWN: id: ' + fogId);
+    });
+} else if (machType === 'fog') {
+    reggie.on('cloud-up', function(cloudId, connInfo) {
+        console.log('CLOUD UP: id: ' + cloudId + ', ip: ' + connInfo.ip + ', port: ' + connInfo.port);
 
-    if (machType === 'device') {
-        // we'll have devices announce if they are phones (iphone or android)
-        // we'll say all devices are thermostats too...I know it doesn't make sense but it's just meant
-        // to be demonstrative :P
-        if (phoneType === 'iPhone') {
+    });
+
+    reggie.on('cloud-down', function(cloudId) {
+        console.log('CLOUD DOWN: id: ' + cloudId);
+    });
+}
+
+// on rare occasions, you might get an error
+reggie.on('error', function(err) {
+    switch(err.name) {
+        case 'permissions_err':
+            console.log(err.message);
+            console.log('Subscriptions: ' + err.value);
+            break;
+        default:
+            console.log('unknown error');
+            break;
+    }
+});
+
+//------------------------------------------------------------------------------
+// Custom attributes/discoveries
+//------------------------------------------------------------------------------
+
+if (machType === 'device') {
+    // we'll have devices announce if they are phones (iphone or android)
+    // we'll say all devices are thermostats too...I know it doesn't make sense but it's just meant
+    // to be demonstrative :P
+    if (phoneType === 'iPhone') {
+        reggie.addAttributes({
+            iPhone: phoneNumber
+        });
+    } else if (phoneType === 'Android') {
+        reggie.addAttributes({
+            android: 'psych, get an iPhone!'
+        });
+
+        // in 10 seconds, turn this android into an iphone
+        setTimeout(function() {
+            reggie.removeAttributes('android');
             reggie.addAttributes({
                 iPhone: phoneNumber
             });
-        } else if (phoneType === 'Android') {
-            reggie.addAttributes({
-                android: 'psych, get an iPhone!'
-            });
-
-            // in 10 seconds, turn this android into an iphone
-            setTimeout(function() {
-                reggie.removeAttributes('android');
-                reggie.addAttributes({
-                    iPhone: phoneNumber
-                });
-            }, 1000);
-        }
-        reggie.addAttributes({
-            thermostat: function() {
-                // returns some random number, which we'll treat as the temperature
-                return Math.random() * 100;
-            }
-        });
-    } else if (machType === 'fog') {
-        // since we'll have clouds discover fogs, we don't need fogs to discover clouds
-        reggie.stopDiscoveringAttributes({
-            cloud: ['status']
-        });
-
-        reggie.discoverAttributes({
-            device: {
-                thermostat: 'thermo'
-            }
-        });
-
-        reggie.on('thermo', function(id, temp) {
-            console.log('DEVICE ' + id + ' is a thermostat with temperature ' + temp);
-        });
-    } else {
-        // maybe clouds want to discover fogs, and iphone devices
-        reggie.discoverAttributes({
-            device: {
-                iPhone: 'iPhone',
-                android: 'android'
-            },
-            fog: {
-                status: {
-                    online: 'fog-up',
-                    offline: 'fog-down'
-                }
-            }
-        });
-
-        reggie.on('fog-up', function(fogId, connInfo) {
-            console.log('FOG UP: id: ' + fogId + ', ip: ' + connInfo.ip + ', port: ' + connInfo.port);
-        });
-
-        reggie.on('fog-down', function(fogId) {
-            console.log('FOG DOWN: id: ' + fogId);
-        });
-
-        reggie.on('iPhone', function(deviceId, phoneNumber) {
-            console.log('DEVICE ' + deviceId + ' is an iPhone with number ' + phoneNumber);
-        });
-
-        reggie.on('android', function(deviceId, phoneNumber) {
-            console.log('DEVICE ' + deviceId + ' is an Android with number ' + phoneNumber);
-        })
+        }, 1000);
     }
+    reggie.addAttributes({
+        thermostat: function() {
+            // returns some random number, which we'll treat as the temperature
+            return 'Temperature: ' + Math.random() * 100;
+        }
+    });
+} else if (machType === 'fog') {
+    // since we'll have clouds discover fogs, we don't need fogs to discover clouds
+    reggie.stopDiscoveringAttributes({
+        cloud: ['status']
+    });
 
-    reggie.registerAndDiscover();
+    reggie.discoverAttributes({
+        device: {
+            thermostat: {
+                onAdd: 'thermo-added',
+                onRemove: 'thermo-removed'
+            }
+        }
+    });
+
+    reggie.on('thermo-added', function(id, temp) {
+        console.log('DEVICE ' + id + ' is a thermostat with temperature ' + temp);
+    });
+
+    reggie.on('thermo-removed', function(id, temp) {
+        console.log('DEVICE ' + id + ' is no longer a thermostat');
+    });
+} else {
+    // maybe clouds want to discover fogs, and iphone devices
+    reggie.discoverAttributes({
+        device: {
+            iPhone: {
+                onAdd: 'iPhone-added',
+                onRemove: 'iPhone-removed'
+            },
+            android: {
+                onAdd: 'android-added',
+                onRemove: 'android-removed'
+            }
+        },
+        fog: {
+            status: {
+                online: 'fog-up',
+                offline: 'fog-down'
+            }
+        }
+    });
+
+    reggie.on('fog-up', function(fogId, connInfo) {
+        console.log('FOG UP: id: ' + fogId + ', ip: ' + connInfo.ip + ', port: ' + connInfo.port);
+    });
+
+    reggie.on('fog-down', function(fogId) {
+        console.log('FOG DOWN: id: ' + fogId);
+    });
+
+    reggie.on('iPhone-added', function(deviceId, phoneNumber) {
+        console.log('DEVICE ' + deviceId + ' is an iPhone with number ' + phoneNumber);
+    });
+
+    reggie.on('iPhone-removed', function(deviceId) {
+        console.log('DEVICE ' + deviceId + ' is no longer an iPhone');
+    });
+
+    reggie.on('android-removed', function(deviceId) {
+        console.log('DEVICE ' + deviceId + ' is no longer an Android');
+    })
+}
+
+reggie.registerAndDiscover();
+
 ```
